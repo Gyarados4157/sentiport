@@ -29,7 +29,7 @@ def check_dependencies():
     required_packages = [
         'pandas', 'numpy', 'streamlit', 'yfinance', 
         'nltk', 'transformers', 'torch', 'plotly',
-        'scikit-learn', 'requests'
+        'sklearn', 'requests'  # scikit-learn导入时使用sklearn
     ]
     
     missing_packages = []
@@ -42,7 +42,7 @@ def check_dependencies():
     
     if missing_packages:
         print(f"❌ 缺少以下依赖包: {', '.join(missing_packages)}")
-        print("请运行: pip install -r requirements_v2.txt")
+        print("请运行: pip install -r requirements.txt")
         return False
     
     print("✅ 所有依赖包已安装")

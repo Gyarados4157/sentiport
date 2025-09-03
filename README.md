@@ -3,13 +3,13 @@
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-red.svg)](https://streamlit.io)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/yourusername/sentiport.svg)](https://github.com/yourusername/sentiport/stargazers)
+[![GitHub stars](https://img.shields.io/github/stars/QF5206PHD/sentiport.svg)](https://github.com/QF5206PHD/sentiport/stargazers)
 
 > 🚀 **一个集成机器学习、自然语言处理和文本分析的现代化量化交易系统**
 
 SentiPort是一个专注于量化交易的金融分析平台，通过深度整合**机器学习**、**自然语言处理**和**文本分析**技术，生成有效的Alpha因子并提供专业的风险管理解决方案。
 
-![SentiPort界面预览](docs/screenshot.png)
+![SentiPort界面预览](docs/demo.png)
 
 ## 🎯 核心特性
 
@@ -535,19 +535,6 @@ The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the Software.
 ```
 
-## 📞 支持与联系
-
-### 获得帮助
-- **GitHub Issues**: [提交问题](https://github.com/yourusername/sentiport/issues)
-- **讨论区**: [GitHub Discussions](https://github.com/yourusername/sentiport/discussions)
-- **邮件支持**: support@sentiport.dev
-
-### 社区
-- **官方网站**: https://sentiport.dev
-- **文档中心**: https://docs.sentiport.dev
-- **博客**: https://blog.sentiport.dev
-
----
 
 ## 🏆 致谢
 
@@ -576,4 +563,4 @@ copies or substantial portions of the Software.
 
 **🎯 如果这个项目对你有帮助，请给个⭐Star支持一下！**
 
-[![GitHub stars](https://img.shields.io/github/stars/yourusername/sentiport.svg?style=social&label=Star)](https://github.com/yourusername/sentiport)
+[![GitHub stars](https://img.shields.io/github/stars/QF5206PHD/sentiport.svg?style=social&label=Star)](https://github.com/QF5206PHD/sentiport)

@@ -28,11 +28,16 @@ def optimize_portfolio(prices: pd.DataFrame, risk_method: str = 'MV', cvar_alpha
         risk_adjusted_returns = mean_returns / volatilities
         risk_adjusted_returns = risk_adjusted_returns.fillna(0)
         
-        # 标准化为权重
-        if risk_adjusted_returns.sum() > 0:
-            weights = (risk_adjusted_returns / risk_adjusted_returns.sum()).to_dict()
+        # 确保只使用正收益的资产（不允许做空）
+        positive_returns = risk_adjusted_returns[risk_adjusted_returns > 0]
+        
+        if len(positive_returns) > 0:
+            # 只对正收益资产分配权重
+            weights = {ticker: 0.0 for ticker in prices.columns}  # 初始化所有权重为0
+            positive_weights = (positive_returns / positive_returns.sum()).to_dict()
+            weights.update(positive_weights)
         else:
-            # 如果都是负值或零，使用等权重
+            # 如果没有正收益资产，使用等权重
             n_assets = len(prices.columns)
             weights = {ticker: 1.0/n_assets for ticker in prices.columns}
     
@@ -40,5 +45,13 @@ def optimize_portfolio(prices: pd.DataFrame, risk_method: str = 'MV', cvar_alpha
     total_weight = sum(weights.values())
     if total_weight > 0:
         weights = {k: v/total_weight for k, v in weights.items()}
+    
+    # 最终安全检查：确保所有权重都为非负数
+    weights = {k: max(0, v) for k, v in weights.items()}
+    
+    # 重新归一化以确保权重和为1
+    final_total = sum(weights.values())
+    if final_total > 0:
+        weights = {k: v/final_total for k, v in weights.items()}
     
     return weights

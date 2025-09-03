@@ -35,19 +35,47 @@ if 'system_initialized' not in st.session_state:
     st.session_state.alpha_data = None
     st.session_state.performance_data = None
 
-@st.cache_resource
+@st.cache_resource(show_spinner="正在初始化系统组件...")
 def initialize_system():
-    """初始化系统组件"""
+    """初始化系统组件 - 增强版本带错误处理"""
     try:
+        # 清除之前的缓存状态
+        if 'initialization_error' in st.session_state:
+            del st.session_state['initialization_error']
+        
         db = DatabaseManager()
         collector = DataCollector(db)
         nlp = NLPProcessor()
         alpha_engine = AlphaFactorEngine(db, nlp)
         backtest = BacktestEngine(db)
         
+        # 验证组件是否正常工作
+        try:
+            # 测试数据库连接
+            conn = sqlite3.connect(db.db_path, timeout=10.0)
+            conn.execute("SELECT 1").fetchone()
+            conn.close()
+        except Exception as db_error:
+            raise Exception(f"数据库连接测试失败: {db_error}")
+        
+        st.success("✅ 系统组件初始化成功")
         return db, collector, nlp, alpha_engine, backtest, True
+        
     except Exception as e:
-        st.error(f"系统初始化失败: {e}")
+        error_msg = f"系统初始化失败: {str(e)}"
+        st.error(error_msg)
+        st.session_state['initialization_error'] = error_msg
+        
+        # 提供诊断信息
+        with st.expander("🔍 诊断信息", expanded=False):
+            st.text(f"错误类型: {type(e).__name__}")
+            st.text(f"错误详情: {str(e)}")
+            st.text("可能原因:")
+            st.text("- 依赖包未正确安装")
+            st.text("- 数据库文件权限问题") 
+            st.text("- 网络连接问题")
+            st.text("- 内存不足")
+        
         return None, None, None, None, None, False
 
 def load_alpha_factors(db_manager):
@@ -211,20 +239,70 @@ st.markdown("**基于NLP的量化交易Alpha因子系统**")
 with st.sidebar:
     st.header("⚙️ 系统设置")
     
+    # 系统状态指示器
+    if st.session_state.system_initialized:
+        st.success("🟢 系统已就绪")
+    else:
+        st.warning("🟡 系统未初始化")
+    
     # 初始化系统
-    if st.button("🚀 初始化系统", type="primary"):
-        with st.spinner("正在初始化系统组件..."):
-            db, collector, nlp, alpha_engine, backtest, success = initialize_system()
-            if success:
-                st.session_state.system_initialized = True
-                st.session_state.db = db
-                st.session_state.collector = collector
-                st.session_state.nlp = nlp
-                st.session_state.alpha_engine = alpha_engine
-                st.session_state.backtest = backtest
-                st.success("✅ 系统初始化成功!")
-            else:
-                st.error("❌ 系统初始化失败")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🚀 初始化", type="primary", use_container_width=True):
+            with st.spinner("正在初始化系统组件..."):
+                db, collector, nlp, alpha_engine, backtest, success = initialize_system()
+                if success:
+                    st.session_state.system_initialized = True
+                    st.session_state.db = db
+                    st.session_state.collector = collector
+                    st.session_state.nlp = nlp
+                    st.session_state.alpha_engine = alpha_engine
+                    st.session_state.backtest = backtest
+                    st.rerun()  # 刷新页面状态
+                else:
+                    st.error("❌ 初始化失败")
+    
+    with col2:
+        if st.button("🔄 重置", use_container_width=True):
+            # 清除缓存和session state
+            st.cache_resource.clear()
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.success("✅ 系统已重置")
+            st.rerun()
+    
+    # 系统诊断
+    with st.expander("🔧 系统诊断"):
+        if st.button("运行诊断", use_container_width=True):
+            st.text("🔍 正在检查系统状态...")
+            
+            # 检查依赖包
+            try:
+                import yfinance, nltk, transformers, torch
+                st.success("✅ 核心依赖包正常")
+            except ImportError as e:
+                st.error(f"❌ 依赖包问题: {e}")
+            
+            # 检查数据库
+            if st.session_state.system_initialized:
+                try:
+                    conn = sqlite3.connect(st.session_state.db.db_path)
+                    tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+                    conn.close()
+                    st.success(f"✅ 数据库正常 ({len(tables)} 个表)")
+                except Exception as e:
+                    st.error(f"❌ 数据库问题: {e}")
+            
+            # 网络连接测试
+            try:
+                import requests
+                response = requests.get("https://finance.yahoo.com", timeout=5)
+                if response.status_code == 200:
+                    st.success("✅ 网络连接正常")
+                else:
+                    st.warning(f"⚠️ 网络响应异常: {response.status_code}")
+            except Exception as e:
+                st.error(f"❌ 网络连接问题: {e}")
     
     st.divider()
     
@@ -236,13 +314,95 @@ with st.sidebar:
     # 运行数据收集
     if st.session_state.system_initialized:
         if st.button("📥 收集数据"):
-            with st.spinner("正在收集股票和新闻数据..."):
-                try:
-                    tickers = st.session_state.collector.get_sp500_tickers(limit=stock_limit)
-                    st.session_state.collector.collect_stock_data(tickers, period=data_period)
-                    st.success(f"✅ 已收集 {len(tickers)} 只股票的数据")
-                except Exception as e:
-                    st.error(f"❌ 数据收集失败: {e}")
+            # 清除之前的数据收集状态
+            if 'data_collection_status' in st.session_state:
+                del st.session_state['data_collection_status']
+            
+            # 创建状态容器
+            status_container = st.empty()
+            progress_bar = st.progress(0)
+            log_container = st.empty()
+            
+            try:
+                status_container.info("🎯 获取股票列表...")
+                tickers = st.session_state.collector.get_sp500_tickers(limit=stock_limit)
+                progress_bar.progress(10)
+                
+                status_container.info(f"📊 开始收集 {len(tickers)} 只股票的数据...")
+                log_container.text(f"目标股票: {', '.join(tickers[:10])}...")
+                
+                # 执行数据收集
+                success = st.session_state.collector.collect_stock_data(tickers, period=data_period)
+                progress_bar.progress(80)
+                
+                if success:
+                    # 验证收集结果
+                    conn = sqlite3.connect(st.session_state.db.db_path)
+                    result = conn.execute("SELECT COUNT(DISTINCT ticker) as count FROM stock_prices").fetchone()
+                    collected_count = result[0] if result else 0
+                    
+                    total_records = conn.execute("SELECT COUNT(*) as count FROM stock_prices").fetchone()[0]
+                    conn.close()
+                    
+                    progress_bar.progress(100)
+                    status_container.success(f"✅ 数据收集成功完成！")
+                    
+                    # 显示收集结果
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("成功收集股票", f"{collected_count} 只")
+                    with col2:
+                        st.metric("总记录数", f"{total_records:,}")
+                    with col3:
+                        st.metric("数据周期", data_period)
+                    
+                    st.session_state['data_collection_status'] = 'success'
+                    
+                    # 自动清理显示
+                    time.sleep(2)
+                    status_container.empty()
+                    progress_bar.empty()
+                    log_container.empty()
+                    
+                else:
+                    progress_bar.progress(100)
+                    status_container.error("❌ 数据收集部分失败，请检查网络连接")
+                    st.session_state['data_collection_status'] = 'partial_failure'
+                    
+                    # 显示诊断信息
+                    with st.expander("🔍 故障诊断", expanded=True):
+                        st.warning("数据收集遇到问题，可能原因：")
+                        st.text("• Yahoo Finance API访问受限")
+                        st.text("• 网络连接不稳定")
+                        st.text("• 部分股票代码无效")
+                        st.text("• 请求频率过高被限制")
+                        
+                        st.info("建议解决方案：")
+                        st.text("1. 减少股票数量后重试")
+                        st.text("2. 检查网络连接")
+                        st.text("3. 等待几分钟后再试")
+                        st.text("4. 使用VPN或更换网络环境")
+                
+            except Exception as e:
+                progress_bar.progress(100)
+                error_msg = f"❌ 数据收集失败: {str(e)}"
+                status_container.error(error_msg)
+                st.session_state['data_collection_status'] = 'failure'
+                
+                # 详细错误信息
+                with st.expander("🔍 错误详情", expanded=True):
+                    st.text(f"错误类型: {type(e).__name__}")
+                    st.text(f"错误信息: {str(e)}")
+                    
+                    # 常见错误的解决建议
+                    if "timeout" in str(e).lower():
+                        st.warning("超时错误 - 建议检查网络连接或减少股票数量")
+                    elif "connection" in str(e).lower():
+                        st.warning("连接错误 - 建议检查网络设置")
+                    elif "permission" in str(e).lower():
+                        st.warning("权限错误 - 建议检查文件访问权限")
+                    else:
+                        st.info("未知错误 - 建议重启应用或联系技术支持")
     
     st.divider()
     

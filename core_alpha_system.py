@@ -109,46 +109,118 @@ class DataCollector:
         return major_stocks[:limit]
     
     def collect_stock_data(self, tickers: List[str], period: str = "2y") -> bool:
-        """批量收集股票价格数据"""
+        """批量收集股票价格数据 - 增强版带重试和错误处理"""
         logger.info(f"Collecting price data for {len(tickers)} stocks")
         
-        conn = sqlite3.connect(self.db.db_path)
+        # 使用WAL模式提高并发性能
+        conn = sqlite3.connect(self.db.db_path, timeout=30.0)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        
+        # 重新创建表结构而不是删除
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS stock_prices_temp (
+            date TEXT,
+            ticker TEXT,
+            open REAL,
+            high REAL,
+            low REAL,
+            close REAL,
+            volume INTEGER,
+            adj_close REAL,
+            PRIMARY KEY (date, ticker)
+        )
+        """)
+        
+        successful_tickers = []
+        failed_tickers = []
         
         for ticker in tickers:
-            try:
-                stock = yf.Ticker(ticker)
-                hist = stock.history(period=period)
-                
-                if hist.empty:
-                    continue
+            retries = 3
+            success = False
+            
+            for attempt in range(retries):
+                try:
+                    logger.info(f"Fetching {ticker} (attempt {attempt + 1}/{retries})")
                     
-                # 准备数据
-                data = hist.reset_index()
-                data['Ticker'] = ticker
-                data = data.rename(columns={
-                    'Date': 'date',
-                    'Open': 'open',
-                    'High': 'high', 
-                    'Low': 'low',
-                    'Close': 'close',
-                    'Volume': 'volume',
-                    'Adj Close': 'adj_close'
-                })
-                
-                # 插入数据库
-                data[['date', 'ticker', 'open', 'high', 'low', 'close', 'volume', 'adj_close']].to_sql(
-                    'stock_prices', conn, if_exists='replace', index=False
-                )
-                
-                logger.info(f"Collected {len(data)} records for {ticker}")
-                time.sleep(0.1)  # 避免API限制
-                
-            except Exception as e:
-                logger.error(f"Error collecting data for {ticker}: {e}")
-                continue
+                    # 增加超时设置
+                    stock = yf.Ticker(ticker)
+                    hist = stock.history(period=period, timeout=30)
+                    
+                    if hist.empty:
+                        logger.warning(f"No data returned for {ticker}")
+                        break
+                    
+                    # 验证数据质量
+                    if len(hist) < 50:  # 至少需要50个交易日
+                        logger.warning(f"Insufficient data for {ticker}: {len(hist)} records")
+                        break
+                        
+                    # 准备数据
+                    data = hist.reset_index()
+                    data['ticker'] = ticker
+                    data = data.rename(columns={
+                        'Date': 'date',
+                        'Open': 'open',
+                        'High': 'high', 
+                        'Low': 'low',
+                        'Close': 'close',
+                        'Volume': 'volume'
+                    })
+                    
+                    # 数据清洗
+                    data['adj_close'] = data['close']
+                    data = data.dropna()  # 移除空值行
+                    
+                    if data.empty:
+                        logger.warning(f"No valid data after cleaning for {ticker}")
+                        break
+                    
+                    # 插入数据库
+                    data[['date', 'ticker', 'open', 'high', 'low', 'close', 'volume', 'adj_close']].to_sql(
+                        'stock_prices_temp', conn, if_exists='append', index=False
+                    )
+                    
+                    logger.info(f"✅ Collected {len(data)} records for {ticker}")
+                    successful_tickers.append(ticker)
+                    success = True
+                    break
+                    
+                except Exception as e:
+                    logger.error(f"❌ Attempt {attempt + 1} failed for {ticker}: {e}")
+                    if attempt < retries - 1:
+                        wait_time = (attempt + 1) * 2  # 指数退避
+                        logger.info(f"Waiting {wait_time}s before retry...")
+                        time.sleep(wait_time)
+                    continue
+            
+            if not success:
+                failed_tickers.append(ticker)
+                logger.error(f"❌ Failed to collect data for {ticker} after {retries} attempts")
+            
+            # 请求间隔，避免API限制
+            time.sleep(0.5)
         
-        conn.close()
-        return True
+        # 原子性操作：替换旧数据
+        try:
+            conn.execute("DROP TABLE IF EXISTS stock_prices")
+            conn.execute("ALTER TABLE stock_prices_temp RENAME TO stock_prices")
+            conn.commit()
+            logger.info(f"✅ Data collection completed: {len(successful_tickers)} successful, {len(failed_tickers)} failed")
+        except Exception as e:
+            logger.error(f"❌ Failed to commit data: {e}")
+            conn.rollback()
+            return False
+        finally:
+            conn.close()
+        
+        # 记录结果
+        if successful_tickers:
+            logger.info(f"✅ Successfully collected: {', '.join(successful_tickers)}")
+        if failed_tickers:
+            logger.warning(f"⚠️ Failed to collect: {', '.join(failed_tickers)}")
+            
+        return len(successful_tickers) > 0
     
     def collect_news_data(self, ticker: str, days: int = 30) -> List[Dict]:
         """收集单个股票的新闻数据"""
