@@ -1,0 +1,38 @@
+# Streamlit Cloud 配置文件
+# 用于优化云端部署性能和用户体验
+
+[theme]
+# 使用默认主题，与应用内CSS样式协调
+primaryColor = "#667eea"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f8f9fa"
+textColor = "#2c3e50"
+font = "sans serif"
+
+[server]
+# 服务器配置
+port = 8501
+enableCORS = false
+enableXsrfProtection = true
+maxUploadSize = 200
+
+# 提高性能
+headless = true
+runOnSave = false
+fileWatcherType = "none"
+
+[browser]
+# 浏览器配置
+gatherUsageStats = false
+serverAddress = "0.0.0.0"
+serverPort = 8501
+
+[client]
+# 客户端配置
+showErrorDetails = false
+toolbarMode = "minimal"
+
+[runner]
+# 运行器配置
+magicEnabled = true
+fastReruns = true

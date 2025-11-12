@@ -138,7 +138,7 @@ $RECYCLE.BIN/
 *~
 
 # 项目特定文件
-*.db
+# *.db  # 注释掉，允许提交 financial_data.db 用于演示
 *.log
 logs/
 data/
@@ -146,11 +146,18 @@ models/
 temp/
 .claude/
 
+# 数据库文件（仅忽略临时文件）
+*.db-shm
+*.db-wal
+*.db-journal
+
 # API密钥和配置
 config.json
 secrets.json
 .env.local
 .env.production
 
-# Streamlit
-.streamlit/
+# Streamlit（只忽略 secrets，保留 config）
+.streamlit/secrets.toml
+.streamlit/*.pyc
+.streamlit/__pycache__/
